@@ -1,6 +1,54 @@
 const express = require('express');
-const Model = require('../model/model');
+const ProductModel = require('../model/productModel');
+const { check, validationResult } = require('express-validator');
 
 const router = express.Router();
+
+router.post(
+  '/product',
+  [
+    check('title', 'Product name is required').not().isEmpty(),
+    check('quantity', 'Quantity is required').not().isEmpty(),
+    check('price', 'Price is required').not().isEmpty(),
+    check('image', 'Image is required').not().isEmpty(),
+    check('category', 'Category is required').not().isEmpty(),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+
+    if (errors.errors.length === 0) {
+      //No errors were found.  Passed Validation!
+      const data = new ProductModel({
+        productName: req.body.title,
+        quantity: req.body.quantity,
+        price: req.body.price,
+        description: req.body.description,
+        image: req.body.image,
+        category: req.body.category,
+      });
+      try {
+        const dataToSave = await data.save();
+        res.status(200).json({ statusCode: 200, message: dataToSave });
+      } catch (error) {
+        res.status(400).json({ statusCode: 500, message: error.message });
+      }
+    } else {
+      //Display errors to user
+      var error_msg = errors.errors[0].msg;
+      res.status(400).json({ statusCode: 400, message: error_msg });
+    }
+  }
+);
+
+// DELETE PRODUCT
+router.delete('/delete-product/(:id)', function (req, res, next) {
+  ProductModel.findByIdAndRemove(req.params.id, (err, doc) => {
+    if (!err) {
+      res.status(400).json({ statusCode: 200, message: 'Product deleted' });
+    } else {
+      res.status(400).json({ statusCode: 400, message: err });
+    }
+  });
+});
 
 module.exports = router;
