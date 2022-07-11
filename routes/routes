@@ -1,5 +1,7 @@
 const express = require('express');
 const ProductModel = require('../model/productModel');
+const UserModel = require('../model/userModel');
+const CartModel = require('../model/cartModel');
 const { check, validationResult } = require('express-validator');
 
 const router = express.Router();
@@ -8,7 +10,6 @@ router.post(
   '/product',
   [
     check('title', 'Product name is required').not().isEmpty(),
-    check('quantity', 'Quantity is required').not().isEmpty(),
     check('price', 'Price is required').not().isEmpty(),
     check('image', 'Image is required').not().isEmpty(),
     check('category', 'Category is required').not().isEmpty(),
@@ -20,7 +21,6 @@ router.post(
       //No errors were found.  Passed Validation!
       const data = new ProductModel({
         productName: req.body.title,
-        quantity: req.body.quantity,
         price: req.body.price,
         description: req.body.description,
         image: req.body.image,
@@ -28,7 +28,7 @@ router.post(
       });
       try {
         const dataToSave = await data.save();
-        res.status(200).json({ statusCode: 200, message: dataToSave });
+        res.status(201).json({ statusCode: 200, message: 'Product created', data: dataToSave });
       } catch (error) {
         res.status(400).json({ statusCode: 500, message: error.message });
       }
@@ -50,5 +50,100 @@ router.delete('/delete-product/(:id)', function (req, res, next) {
     }
   });
 });
+
+router.post(
+  '/user',
+  [check('name', 'User-name is required').not().isEmpty(), check('email', 'Email is required').not().isEmpty(), check('email', 'Invalid Email').isEmail()],
+  async (req, res) => {
+    const errors = validationResult(req);
+
+    if (errors.errors.length === 0) {
+      //No errors were found.  Passed Validation!
+      const data = new UserModel({
+        userName: req.body.name,
+        email: req.body.email,
+      });
+      try {
+        const dataToSave = await data.save();
+        res.status(201).json({ statusCode: 200, message: 'User created', data: dataToSave });
+      } catch (error) {
+        res.status(400).json({ statusCode: 500, message: error.message });
+      }
+    } else {
+      //Display errors to user
+      var error_msg = errors.errors[0].msg;
+      res.status(400).json({ statusCode: 400, message: error_msg });
+    }
+  }
+);
+
+router.get('/cart/user/(:userId)', async (req, res) => {
+  CartModel.find({ userId: req.params.userId }, (err, doc) => {
+    if (err) {
+      res.status(400).json({ statusCode: 400, message: err });
+    }
+    if (doc.length != 0) {
+      res.status(200).json({ statusCode: 200, data: doc });
+    }
+  });
+  //Display errors to user
+});
+
+router.post(
+  '/add-to-cart',
+  [
+    check('userId', 'UserID is required').not().isEmpty(),
+    check('date', 'Date is required').not().isEmpty(),
+    check('products', 'Products is required').not().isEmpty(),
+  ],
+  async (req, res) => {
+    const errors = validationResult(req);
+    if (errors.errors.length === 0) {
+      let cartParams = {
+        userId: req.body.userId,
+        products: req.body.products,
+        date: req.body.date,
+      };
+      //No errors were found.  Passed Validation!
+      CartModel.find({ userId: req.body.userId }, (err, doc) => {
+        if (err) {
+          res.status(400).json({ statusCode: 400, message: err });
+        }
+        if (doc.length == 0) {
+          const data = new CartModel(cartParams);
+          try {
+            const dataToSave = new Promise((resolve, reject) => {
+              resolve(data.save());
+            }).catch((err) => res.status(400).json({ statusCode: 500, message: err.message }));
+            dataToSave
+              .then((data) => res.status(201).json({ statusCode: 200, message: 'Product added to cart', data: dataToSave }))
+              .catch((err) => res.status(400).json({ statusCode: 500, message: err.message }));
+          } catch (error) {
+            res.status(400).json({ statusCode: 500, message: error.message });
+          }
+        } else if (doc.length > 0) {
+          CartModel.findAndModify(
+            { userId: doc[0]._id }, // query
+            [], // represents a sort order if multiple matches
+            { $set: cartParams }, // update statement
+            { new: true },
+            (err, cartData) => {
+              if (err) {
+                res.status(400).json({ statusCode: 500, message: error.message });
+              }
+              if (cartData) {
+                res.status(200).json({ statusCode: 200, message: 'Products updated in cart', data: cartData });
+              }
+            }
+          );
+        } else {
+          //Display errors to user
+          var error_msg = errors.errors[0].msg;
+          res.status(400).json({ statusCode: 400, message: error_msg });
+        }
+      });
+    }
+  }
+);
 
 module.exports = router;
